@@ -99,10 +99,8 @@ export function useTopNavLinks(): TopNavLink[] {
     links.push({ title: t('About'), href: '/about' })
   }
 
-  // Token Plan（在关于右边）
-  const tokenPlanLink = (status as Record<string, unknown>)?.token_plan_link as string | undefined
-    || 'https://taotoken.net/token-plan'
-  links.push({ title: t('Token Plan'), href: tokenPlanLink, external: true })
+  // Token Plan（在关于左边，内部页面）
+  links.push({ title: t('Token Plan'), href: '/token-plan' })
 
   return links
 }
