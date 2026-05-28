@@ -164,6 +164,13 @@ func Register(c *gin.Context) {
 			return
 		}
 	}
+	// 验证图像验证码
+	if user.CaptchaId != "" || user.CaptchaCode != "" {
+		if !VerifyCaptcha(user.CaptchaId, user.CaptchaCode) {
+			common.ApiErrorI18n(c, i18n.MsgUserVerificationCodeError)
+			return
+		}
+	}
 	exist, err := model.CheckUserExistOrDeleted(user.Username, user.Email)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgDatabaseError)

@@ -1,15 +1,15 @@
 package router
 
 import (
-	"embed"
 	"net/http"
 	"strings"
+	"embed"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
+
 	"github.com/gin-contrib/gzip"
-	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,12 +24,43 @@ type ThemeAssets struct {
 func SetWebRouter(router *gin.Engine, assets ThemeAssets) {
 	defaultFS := common.EmbedFolder(assets.DefaultBuildFS, "web/default/dist")
 	classicFS := common.EmbedFolder(assets.ClassicBuildFS, "web/classic/dist")
-	themeFS := common.NewThemeAwareFS(defaultFS, classicFS)
 
 	router.Use(gzip.Gzip(gzip.DefaultCompression))
 	router.Use(middleware.GlobalWebRateLimit())
 	router.Use(middleware.Cache())
-	router.Use(static.Serve("/", themeFS))
+	
+	// Custom static file handler to serve logo.png from embedded dist directories
+	router.GET("/logo.png", func(c *gin.Context) {
+		c.Set(middleware.RouteTagKey, "web")
+		if common.GetTheme() == "classic" {
+			data, err := classicFS.Open("web/classic/dist/logo.png")
+			if err != nil {
+				c.Status(http.StatusNotFound)
+				return
+			}
+			defer data.Close()
+			stat, err := data.Stat()
+			if err != nil {
+				c.Status(http.StatusNotFound)
+				return
+			}
+			c.DataFromReader(http.StatusOK, stat.Size(), "image/png", data, nil)
+		} else {
+			data, err := defaultFS.Open("web/default/dist/logo.png")
+			if err != nil {
+				c.Status(http.StatusNotFound)
+				return
+			}
+			defer data.Close()
+			stat, err := data.Stat()
+			if err != nil {
+				c.Status(http.StatusNotFound)
+				return
+			}
+			c.DataFromReader(http.StatusOK, stat.Size(), "image/png", data, nil)
+		}
+	})
+	
 	router.NoRoute(func(c *gin.Context) {
 		c.Set(middleware.RouteTagKey, "web")
 		if strings.HasPrefix(c.Request.RequestURI, "/v1") || strings.HasPrefix(c.Request.RequestURI, "/api") || strings.HasPrefix(c.Request.RequestURI, "/assets") {

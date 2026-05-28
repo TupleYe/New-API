@@ -27,7 +27,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       console: true,
       pricing: true,
       docs: true,
-      about: true,
+      about: false,
     };
 
     // 使用传入的配置或默认配置
@@ -63,6 +63,12 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         text: t('关于'),
         itemKey: 'about',
         to: '/about',
+      },
+      {
+        text: t('Token Plan'),
+        itemKey: 'token-plan',
+        isExternal: true,
+        externalLink: 'https://taotoken.net/token-plan',
       },
     ];
 

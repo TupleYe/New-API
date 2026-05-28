@@ -20,7 +20,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { z } from 'zod'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Loader2 } from 'lucide-react'
+import { Loader2, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -46,17 +46,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/password-input'
 import { Turnstile } from '@/components/turnstile'
-import { register, wechatLoginByCode } from '@/features/auth/api'
+import { register, wechatLoginByCode, getCaptcha } from '@/features/auth/api'
 import { LegalConsent } from '@/features/auth/components/legal-consent'
 import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { registerFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useEmailVerification } from '@/features/auth/hooks/use-email-verification'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
-import {
-  getAffiliateCode,
-  saveAffiliateCode,
-} from '@/features/auth/lib/storage'
+import { getAffiliateCode } from '@/features/auth/lib/storage'
 
 export function SignUpForm({
   className,
@@ -70,6 +67,12 @@ export function SignUpForm({
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
+
+  // Image captcha state
+  const [captchaId, setCaptchaId] = useState('')
+  const [captchaImage, setCaptchaImage] = useState('')
+  const [captchaCode, setCaptchaCode] = useState('')
+  const [isRefreshingCaptcha, setIsRefreshingCaptcha] = useState(false)
 
   const { status } = useStatus()
   const {
@@ -110,7 +113,6 @@ export function SignUpForm({
     status?.data?.oauth_register_enabled ??
     true
   const hasWeChatLogin = Boolean(status?.wechat_login)
-  const turnstileReady = !isTurnstileEnabled || Boolean(turnstileToken)
 
   const wechatQrCodeUrl = useMemo(() => {
     return (
@@ -126,6 +128,11 @@ export function SignUpForm({
     )
   }, [status])
 
+  // Fetch captcha on mount
+  useEffect(() => {
+    fetchCaptcha()
+  }, [])
+
   useEffect(() => {
     if (requiresLegalConsent) {
       setAgreedToLegal(false)
@@ -134,16 +141,30 @@ export function SignUpForm({
     }
   }, [requiresLegalConsent])
 
-  useEffect(() => {
-    const aff = new URLSearchParams(window.location.search).get('aff')?.trim()
-    if (aff) {
-      saveAffiliateCode(aff)
+  async function fetchCaptcha() {
+    setIsRefreshingCaptcha(true)
+    try {
+      const res = await getCaptcha()
+      if (res?.success && res?.data) {
+        setCaptchaId(res.data.captcha_id)
+        setCaptchaImage(res.data.captcha_image)
+      }
+    } catch (_error) {
+      // Ignore error
+    } finally {
+      setIsRefreshingCaptcha(false)
     }
-  }, [])
+  }
 
   async function onSubmit(data: z.infer<typeof registerFormSchema>) {
     if (requiresLegalConsent && !agreedToLegal) {
       toast.error(legalConsentErrorMessage)
+      return
+    }
+
+    // Validate captcha
+    if (!captchaCode.trim()) {
+      toast.error(t('Please enter the captcha'))
       return
     }
 
@@ -170,16 +191,22 @@ export function SignUpForm({
         verification_code: verificationCode || undefined,
         aff_code: getAffiliateCode(),
         turnstile: turnstileToken,
+        captcha_id: captchaId,
+        captcha_code: captchaCode,
       })
 
       if (res?.success) {
         toast.success(t('Account created! Please sign in'))
         redirectToLogin()
       } else {
-        toast.error(res?.message || t('Failed to create account'))
+        // Refresh captcha on failure
+        fetchCaptcha()
+        setCaptchaCode('')
       }
     } catch (_error) {
       // Errors are handled by global interceptor
+      fetchCaptcha()
+      setCaptchaCode('')
     } finally {
       setIsLoading(false)
     }
@@ -284,6 +311,51 @@ export function SignUpForm({
           )}
         />
 
+        {/* Image Captcha Field */}
+        <div className='flex items-end gap-2'>
+          <div className='flex-1'>
+            <Label>{t('Captcha')}</Label>
+            <Input
+              placeholder={t('Enter captcha')}
+              value={captchaCode}
+              onChange={(e) => setCaptchaCode(e.target.value)}
+              maxLength={4}
+            />
+          </div>
+          <div
+            className='flex items-center justify-center border rounded-md cursor-pointer hover:border-primary transition-colors overflow-hidden bg-white'
+            style={{ height: 50, minWidth: 120 }}
+            onClick={fetchCaptcha}
+            title={t('Click to refresh captcha')}
+          >
+            {captchaImage ? (
+              <img
+                src={captchaImage}
+                alt='Captcha'
+                style={{ height: 50, width: 'auto' }}
+                className='object-contain'
+              />
+            ) : (
+              <Loader2 className='h-4 w-4 animate-spin text-muted-foreground' />
+            )}
+          </div>
+          <Button
+            variant='ghost'
+            size='icon'
+            type='button'
+            disabled={isRefreshingCaptcha}
+            onClick={fetchCaptcha}
+            title={t('Refresh captcha')}
+          >
+            <RefreshCw
+              className={cn(
+                'h-4 w-4',
+                isRefreshingCaptcha && 'animate-spin'
+              )}
+            />
+          </Button>
+        </div>
+
         {/* Email Verification Section */}
         {emailVerificationRequired && (
           <>
@@ -320,13 +392,7 @@ export function SignUpForm({
               <Button
                 variant='outline'
                 type='button'
-                disabled={
-                  isLoading ||
-                  isSendingCode ||
-                  isActive ||
-                  !emailValue ||
-                  !turnstileReady
-                }
+                disabled={isLoading || isSendingCode || isActive || !emailValue}
                 onClick={handleSendVerificationCode}
               >
                 {isActive ? (
@@ -338,6 +404,7 @@ export function SignUpForm({
                 )}
               </Button>
             </div>
+
           </>
         )}
 
@@ -362,11 +429,7 @@ export function SignUpForm({
         <Button
           type='submit'
           className='mt-2 w-full justify-center gap-2'
-          disabled={
-            isLoading ||
-            (requiresLegalConsent && !agreedToLegal) ||
-            !turnstileReady
-          }
+          disabled={isLoading || (requiresLegalConsent && !agreedToLegal)}
         >
           {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : null}
           {t('Create account')}
@@ -393,7 +456,7 @@ export function SignUpForm({
               <DialogTitle>{t('WeChat sign in')}</DialogTitle>
               <DialogDescription>
                 {t(
-                  'Scan the QR code to follow the official account and reply with “验证码” to receive your verification code.'
+                  'Scan the QR code to follow the official account and reply with "验证码" to receive your verification code.'
                 )}
               </DialogDescription>
             </DialogHeader>
