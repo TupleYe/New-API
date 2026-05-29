@@ -100,7 +100,9 @@ export function useTopNavLinks(): TopNavLink[] {
   }
 
   // Token Plan（在关于左边，内部页面）
-  links.push({ title: t('Token Plan'), href: '/token-plan' })
+  if (modules?.['token-plan'] !== false) {
+    links.push({ title: t('Token Plan'), href: '/token-plan' })
+  }
 
   return links
 }
