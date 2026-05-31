@@ -19,14 +19,17 @@ For commercial licensing, please contact support@quantumnous.com
 package controller
 
 import (
+	"encoding/json"
 	"net/http"
+	"strings"
 
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 )
 
-// TokenPlanTier 套餐层级信息
+// TokenPlanTier 套餐层级信息 (API 返回结构)
 type TokenPlanTier struct {
 	ID              string   `json:"id"`
 	Name            string   `json:"name"`
@@ -40,9 +43,10 @@ type TokenPlanTier struct {
 	Highlighted     bool     `json:"highlighted"`
 	Badge           string   `json:"badge,omitempty"`
 	ButtonText      string   `json:"button_text"`
+	PlanId          int      `json:"plan_id"`
 }
 
-// TokenPlanTopUp 加油包信息
+// TokenPlanTopUp 加油包信息 (API 返回结构)
 type TokenPlanTopUp struct {
 	ID            string  `json:"id"`
 	Name          string  `json:"name"`
@@ -50,17 +54,18 @@ type TokenPlanTopUp struct {
 	Credits       int64   `json:"credits"`
 	CreditsLabel  string  `json:"credits_label"`
 	CallsEstimate string  `json:"calls_estimate"`
-	Note          string  `json:"note"`
+	Note          string  `json:"note,omitempty"`
 	ButtonText    string  `json:"button_text"`
+	PlanId        int     `json:"plan_id"`
 }
 
 // TokenPlanResponse 套餐页面完整数据
 type TokenPlanResponse struct {
-	Tiers        []TokenPlanTier  `json:"tiers"`
-	TopUps       []TokenPlanTopUp `json:"top_ups"`
-	RulesTitle   string           `json:"rules_title"`
-	RulesSections []RuleSection   `json:"rules_sections"`
-	CurrencySymbol string         `json:"currency_symbol"`
+	Tiers          []TokenPlanTier  `json:"tiers"`
+	TopUps         []TokenPlanTopUp `json:"top_ups"`
+	RulesTitle     string           `json:"rules_title"`
+	RulesSections  []RuleSection    `json:"rules_sections"`
+	CurrencySymbol string           `json:"currency_symbol"`
 }
 
 // RuleSection 规则段落
@@ -69,11 +74,91 @@ type RuleSection struct {
 	Content []string `json:"content"`
 }
 
-// GetTokenPlan 获取 Token Plan 页面数据
-func GetTokenPlan(c *gin.Context) {
-	// 获取当前语言（优先从 Accept-Language 获取）
+// i18nMap 解析 JSON 格式的多语言字段
+func i18nMap(raw string) map[string]string {
+	if raw == "" {
+		return map[string]string{}
+	}
+	var m map[string]string
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return map[string]string{}
+	}
+	return m
+}
+
+// i18nSlice 解析 JSON 格式的多语言数组字段
+func i18nSliceMap(raw string) map[string][]string {
+	if raw == "" {
+		return map[string][]string{}
+	}
+	var m map[string][]string
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		return map[string][]string{}
+	}
+	return m
+}
+
+// pickI18n 从多语言 map 中选取对应语言
+func pickI18n(m map[string]string, lang string) string {
+	if v, ok := m[lang]; ok && v != "" {
+		return v
+	}
+	// fallback: zh -> en, en -> zh
+	if lang == "zh" {
+		if v, ok := m["en"]; ok {
+			return v
+		}
+	}
+	if lang == "en" {
+		if v, ok := m["zh"]; ok {
+			return v
+		}
+	}
+	// 返回第一个非空值
+	for _, v := range m {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// pickI18nSlice 从多语言 map 中选取对应语言的数组
+func pickI18nSlice(m map[string][]string, lang string) []string {
+	if v, ok := m[lang]; ok && len(v) > 0 {
+		return v
+	}
+	if lang == "zh" {
+		if v, ok := m["en"]; ok {
+			return v
+		}
+	}
+	if lang == "en" {
+		if v, ok := m["zh"]; ok {
+			return v
+		}
+	}
+	for _, v := range m {
+		if len(v) > 0 {
+			return v
+		}
+	}
+	return []string{}
+}
+
+// detectLang 从 Accept-Language 判断语言
+func detectLang(c *gin.Context) string {
 	lang := c.GetHeader("Accept-Language")
-	isCN := len(lang) >= 2 && (lang[:2] == "zh" || lang == "ZH" || lang == "zh")
+	langs := strings.ToLower(lang)
+	if strings.HasPrefix(langs, "zh") {
+		return "zh"
+	}
+	return "en"
+}
+
+// GetTokenPlan 获取 Token Plan 页面数据 (从 DB 读取)
+func GetTokenPlan(c *gin.Context) {
+	lang := detectLang(c)
 
 	// 获取货币符号
 	currencySymbol := "$"
@@ -83,166 +168,169 @@ func GetTokenPlan(c *gin.Context) {
 		currencySymbol = operation_setting.GetCurrencySymbol()
 	}
 
-	if isCN {
+	// 从数据库读取所有启用的套餐计划
+	var plans []model.SubscriptionPlan
+	if err := model.DB.Where("enabled = ?", true).Order("sort_order desc, id asc").Find(&plans).Error; err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "",
 			"data": TokenPlanResponse{
 				CurrencySymbol: currencySymbol,
-				Tiers: []TokenPlanTier{
-					{
-						ID:            "lite",
-						Name:          "Lite",
-						Subtitle:      "日常使用",
-						PriceMonthly:  59,
-						PriceOriginal: 75,
-						Credits:       5000,
-						CreditsLabel:  "5000 Credits / 月",
-						CallsEstimate: "≈ 3,000 次 DeepSeek V4 任务调用",
-						Features: []string{
-							"一站接入，多模型随心切换",
-							"Credits 统一消耗，计费清晰透明",
-							"无缝接入主流 Agent 生态及编程助手",
-							"数据安全底线：您的对话，永不用于训练",
-						},
-						Highlighted: false,
-						ButtonText:  "按月订阅，随时可取消",
-					},
-					{
-						ID:            "pro",
-						Name:          "Pro",
-						Subtitle:      "推荐效率升级",
-						PriceMonthly:  149,
-						PriceOriginal: 200,
-						Credits:       14000,
-						CreditsLabel:  "14000 Credits / 月",
-						CallsEstimate: "≈ 8,400 次 DeepSeek V4 任务调用",
-						Features: []string{
-							"一站接入，多模型随心切换",
-							"Credits 统一消耗，计费清晰透明",
-							"无缝接入主流 Agent 生态及编程助手",
-							"数据安全底线：您的对话，永不用于训练",
-							"更高并发，优先推理队列",
-						},
-						Highlighted: true,
-						Badge:       "推荐",
-						ButtonText:  "按月订阅，随时可取消",
-					},
-				},
-				TopUps: []TokenPlanTopUp{
-					{
-						ID:            "topup-10000",
-						Name:          "加油包",
-						Price:         99,
-						Credits:       10000,
-						CreditsLabel:  "10000 Credits",
-						CallsEstimate: "≈ 6,000 次 DeepSeek V4 任务调用",
-						Note:          "需先订阅任一套餐",
-						ButtonText:    "加购",
-					},
-				},
-				RulesTitle: "权益与规则说明",
-				RulesSections: []RuleSection{
-					{
-						Title: "Credits 用量规则",
-						Content: []string{
-							"订阅后按周期发放 Credits 额度，按实际消耗的输入与输出 token 折算扣减；不同模型单价不同。",
-							"周期内额度用尽，可加购加油包，或升级到更高档位。",
-							"Credits 已耗尽，或调用当前套餐未覆盖的模型，相应用量从账户余额扣减。",
-						},
-					},
-					{
-						Title: "加油包说明",
-						Content: []string{
-							"需先订阅任一主套餐，加购后支付成功即到账。",
-							"加油包 Credits 在当前周期内与主套餐合并扣减。",
-							"到期时间与当前生效主套餐一致。",
-						},
-					},
-				},
+				Tiers:          []TokenPlanTier{},
+				TopUps:         []TokenPlanTopUp{},
 			},
 		})
-	} else {
-		localCurrencySymbol := currencySymbol
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"message": "",
-			"data": TokenPlanResponse{
-				CurrencySymbol: localCurrencySymbol,
-				Tiers: []TokenPlanTier{
-					{
-						ID:            "lite",
-						Name:          "Lite",
-						Subtitle:      "Daily Use",
-						PriceMonthly:  59,
-						PriceOriginal: 75,
-						Credits:       5000,
-						CreditsLabel:  "5,000 Credits / month",
-						CallsEstimate: "≈ 3,000 DeepSeek V4 tasks",
-						Features: []string{
-							"All models in one gateway",
-							"Unified Credits billing, clear and transparent",
-							"Seamless integration with Agent ecosystem & coding tools",
-							"Your conversations are never used for training",
-						},
-						Highlighted: false,
-						ButtonText:  "Subscribe monthly, cancel anytime",
-					},
-					{
-						ID:            "pro",
-						Name:          "Pro",
-						Subtitle:      "Recommended Upgrade",
-						PriceMonthly:  149,
-						PriceOriginal: 200,
-						Credits:       14000,
-						CreditsLabel:  "14,000 Credits / month",
-						CallsEstimate: "≈ 8,400 DeepSeek V4 tasks",
-						Features: []string{
-							"All models in one gateway",
-							"Unified Credits billing, clear and transparent",
-							"Seamless integration with Agent ecosystem & coding tools",
-							"Your conversations are never used for training",
-							"Higher concurrency, priority inference queue",
-						},
-						Highlighted: true,
-						Badge:       "Popular",
-						ButtonText:  "Subscribe monthly, cancel anytime",
-					},
-				},
-				TopUps: []TokenPlanTopUp{
-					{
-						ID:            "topup-10000",
-						Name:          "Top Up",
-						Price:         99,
-						Credits:       10000,
-						CreditsLabel:  "10,000 Credits",
-						CallsEstimate: "≈ 6,000 DeepSeek V4 tasks",
-						Note:          "Requires an active subscription",
-						ButtonText:    "Buy Now",
-					},
-				},
-				RulesTitle: "Terms & Rules",
-				RulesSections: []RuleSection{
-					{
-						Title: "Credits Usage Rules",
-						Content: []string{
-							"Credits are allocated per billing cycle and deducted based on actual input/output tokens consumed. Different models have different unit prices.",
-							"If credits are exhausted mid-cycle, you can purchase a top-up or upgrade to a higher tier.",
-							"If credits are depleted or you call a model not covered by your current plan, usage will be deducted from your account balance.",
-						},
-					},
-					{
-						Title: "Top-Up Notes",
-						Content: []string{
-							"A main subscription plan must be active before purchasing a top-up. Credits are credited immediately upon successful payment.",
-							"Top-up credits are merged with the main plan and deducted together within the current cycle.",
-							"The expiry date matches the active main subscription plan.",
-						},
-					},
-				},
-			},
-		})
+		return
 	}
+
+	tiers := []TokenPlanTier{}
+	topUps := []TokenPlanTopUp{}
+
+	for _, p := range plans {
+		// 按类型分离：tier = 订阅套餐, topup = 加油包
+		if p.PlanType == "topup" {
+			topUps = append(topUps, buildTopUp(p, lang))
+		} else {
+			tiers = append(tiers, buildTier(p, lang))
+		}
+	}
+
+	// 规则说明（多语言）
+	var rulesTitle string
+	var rulesSections []RuleSection
+
+	if lang == "zh" {
+		rulesTitle = "权益与规则说明"
+		rulesSections = []RuleSection{
+			{
+				Title: "Credits 用量规则",
+				Content: []string{
+					"订阅后按周期发放 Credits 额度，按实际消耗的输入与输出 token 折算扣减；不同模型单价不同。",
+					"周期内额度用尽，可加购加油包，或升级到更高档位。",
+					"Credits 已耗尽，或调用当前套餐未覆盖的模型，相应用量从账户余额扣减。",
+				},
+			},
+			{
+				Title: "加油包说明",
+				Content: []string{
+					"需先订阅任一主套餐，加购后支付成功即到账。",
+					"加油包 Credits 在当前周期内与主套餐合并扣减。",
+					"到期时间与当前生效主套餐一致。",
+				},
+			},
+		}
+	} else {
+		rulesTitle = "Terms & Rules"
+		rulesSections = []RuleSection{
+			{
+				Title: "Credits Usage Rules",
+				Content: []string{
+					"Credits are allocated per billing cycle and deducted based on actual input/output tokens consumed. Different models have different unit prices.",
+					"If credits are exhausted mid-cycle, you can purchase a top-up or upgrade to a higher tier.",
+					"If credits are depleted or you call a model not covered by your current plan, usage will be deducted from your account balance.",
+				},
+			},
+			{
+				Title: "Top-Up Notes",
+				Content: []string{
+					"A main subscription plan must be active before purchasing a top-up. Credits are credited immediately upon successful payment.",
+					"Top-up credits are merged with the main plan and deducted together within the current cycle.",
+					"The expiry date matches the active main subscription plan.",
+				},
+			},
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": TokenPlanResponse{
+			CurrencySymbol: currencySymbol,
+			Tiers:          tiers,
+			TopUps:         topUps,
+			RulesTitle:     rulesTitle,
+			RulesSections:  rulesSections,
+		},
+	})
+}
+
+// buildTier 从 SubscriptionPlan 构建 TokenPlanTier
+func buildTier(p model.SubscriptionPlan, lang string) TokenPlanTier {
+	titleM := i18nMap(p.TitleI18n)
+	subtitleM := i18nMap(p.SubtitleI18n)
+	creditsLabelM := i18nMap(p.CreditsLabelI18n)
+	callsEstimateM := i18nMap(p.CallsEstimateI18n)
+	featuresM := i18nSliceMap(p.FeaturesI18n)
+	badgeM := i18nMap(p.BadgeI18n)
+	buttonTextM := i18nMap(p.ButtonTextI18n)
+
+	name := pickI18n(titleM, lang)
+	if name == "" {
+		name = p.Title
+	}
+	subtitle := pickI18n(subtitleM, lang)
+	if subtitle == "" {
+		subtitle = p.Subtitle
+	}
+	creditsLabel := pickI18n(creditsLabelM, lang)
+	callsEstimate := pickI18n(callsEstimateM, lang)
+	features := pickI18nSlice(featuresM, lang)
+	badge := pickI18n(badgeM, lang)
+	buttonText := pickI18n(buttonTextM, lang)
+
+	return TokenPlanTier{
+		ID:            planSlug(p),
+		Name:          name,
+		Subtitle:      subtitle,
+		PriceMonthly:  p.PriceAmount,
+		PriceOriginal: p.PriceOriginal,
+		Credits:       p.TotalAmount,
+		CreditsLabel:  creditsLabel,
+		CallsEstimate: callsEstimate,
+		Features:      features,
+		Highlighted:   p.Highlighted,
+		Badge:         badge,
+		ButtonText:    buttonText,
+		PlanId:        p.Id,
+	}
+}
+
+// buildTopUp 从 SubscriptionPlan 构建 TokenPlanTopUp
+func buildTopUp(p model.SubscriptionPlan, lang string) TokenPlanTopUp {
+	titleM := i18nMap(p.TitleI18n)
+	creditsLabelM := i18nMap(p.CreditsLabelI18n)
+	callsEstimateM := i18nMap(p.CallsEstimateI18n)
+	buttonTextM := i18nMap(p.ButtonTextI18n)
+	noteM := i18nMap(p.TopUpNoteI18n)
+
+	name := pickI18n(titleM, lang)
+	if name == "" {
+		name = p.Title
+	}
+	creditsLabel := pickI18n(creditsLabelM, lang)
+	callsEstimate := pickI18n(callsEstimateM, lang)
+	buttonText := pickI18n(buttonTextM, lang)
+	note := pickI18n(noteM, lang)
+
+	return TokenPlanTopUp{
+		ID:            planSlug(p),
+		Name:          name,
+		Price:         p.PriceAmount,
+		Credits:       p.TotalAmount,
+		CreditsLabel:  creditsLabel,
+		CallsEstimate: callsEstimate,
+		Note:          note,
+		ButtonText:    buttonText,
+		PlanId:        p.Id,
+	}
+}
+
+// planSlug 生成套餐 ID 字符串
+func planSlug(p model.SubscriptionPlan) string {
+	if p.PlanType == "topup" {
+		return "topup-" + strings.ToLower(p.Title)
+	}
+	return strings.ToLower(p.Title)
 }
 
 // GetTokenPlanLink 获取配置的 Token Plan 链接

@@ -29,6 +29,7 @@ export interface TokenPlanTier {
   highlighted: boolean
   badge?: string
   button_text: string
+  plan_id: number
 }
 
 export interface TokenPlanTopUp {
@@ -40,6 +41,7 @@ export interface TokenPlanTopUp {
   calls_estimate: string
   note?: string
   button_text: string
+  plan_id: number
 }
 
 export interface RuleSection {

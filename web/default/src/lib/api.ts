@@ -158,12 +158,23 @@ export function getCommonHeaders(): Record<string, string> {
 // Request Interceptor
 // ============================================================================
 
-// Attach user ID header for all requests
+// Attach user ID header and language header for all requests
 api.interceptors.request.use((config) => {
   const uid = getUserId()
   if (uid) {
     // Custom header for user identification
     ;(config.headers as Record<string, string>)['New-Api-User'] = uid
+  }
+  // Auto-detect current i18n language and set Accept-Language
+  try {
+    const lng = typeof window !== 'undefined' && window.localStorage?.getItem('i18nextLng')
+    if (lng) {
+      // Map i18n language codes to Accept-Language format
+      const lang = lng.startsWith('zh') ? 'zh-CN' : lng.startsWith('en') ? 'en-US' : lng
+      ;(config.headers as Record<string, string>)['Accept-Language'] = lang
+    }
+  } catch {
+    /* empty */
   }
   return config
 })

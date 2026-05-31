@@ -177,6 +177,38 @@ type SubscriptionPlan struct {
 	QuotaResetPeriod        string `json:"quota_reset_period" gorm:"type:varchar(16);default:'never'"`
 	QuotaResetCustomSeconds int64  `json:"quota_reset_custom_seconds" gorm:"type:bigint;default:0"`
 
+	// --- Token Plan 展示字段 ---
+	// 多语言标题/副标题 (JSON 存储各语言文案, e.g. {"zh":"日常使用","en":"Daily Use"})
+	TitleI18n    string `json:"title_i18n" gorm:"type:text;default:''"`
+	SubtitleI18n string `json:"subtitle_i18n" gorm:"type:text;default:''"`
+
+	// Credits 月额度标签 (多语言JSON, e.g. {"zh":"5000 Credits / 月","en":"5,000 Credits / month"})
+	CreditsLabelI18n string `json:"credits_label_i18n" gorm:"type:text;default:''"`
+
+	// 估算调用次数 (多语言JSON, e.g. {"zh":"≈ 3,000 次 DeepSeek V4 任务调用","en":"≈ 3,000 DeepSeek V4 tasks"})
+	CallsEstimateI18n string `json:"calls_estimate_i18n" gorm:"type:text;default:''"`
+
+	// 功能列表 (多语言JSON数组, e.g. {"zh":["一站接入..."],"en":["All models..."]})
+	FeaturesI18n string `json:"features_i18n" gorm:"type:text;default:''"`
+
+	// 是否高亮推荐
+	Highlighted bool `json:"highlighted" gorm:"default:false"`
+
+	// 徽章文案 (多语言JSON, e.g. {"zh":"推荐","en":"Popular"})
+	BadgeI18n string `json:"badge_i18n" gorm:"type:text;default:''"`
+
+	// 原价 (用于划线价展示)
+	PriceOriginal float64 `json:"price_original" gorm:"type:decimal(10,6);default:0"`
+
+	// 按钮文案 (多语言JSON, e.g. {"zh":"按月订阅，随时可取消","en":"Subscribe monthly, cancel anytime"})
+	ButtonTextI18n string `json:"button_text_i18n" gorm:"type:text;default:''"`
+
+	// Token Plan 类型标记: "tier"=订阅套餐, "topup"=加油包
+	PlanType string `json:"plan_type" gorm:"type:varchar(16);default:'tier'"`
+
+	// 加油包备注 (多语言JSON)
+	TopUpNoteI18n string `json:"topup_note_i18n" gorm:"type:text;default:''"`
+
 	CreatedAt int64 `json:"created_at" gorm:"bigint"`
 	UpdatedAt int64 `json:"updated_at" gorm:"bigint"`
 }

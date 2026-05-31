@@ -277,6 +277,17 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"upgrade_group":              req.Plan.UpgradeGroup,
 			"quota_reset_period":         req.Plan.QuotaResetPeriod,
 			"quota_reset_custom_seconds": req.Plan.QuotaResetCustomSeconds,
+			"title_i18n":                 req.Plan.TitleI18n,
+			"subtitle_i18n":              req.Plan.SubtitleI18n,
+			"credits_label_i18n":         req.Plan.CreditsLabelI18n,
+			"calls_estimate_i18n":        req.Plan.CallsEstimateI18n,
+			"features_i18n":              req.Plan.FeaturesI18n,
+			"highlighted":                req.Plan.Highlighted,
+			"badge_i18n":                 req.Plan.BadgeI18n,
+			"price_original":             req.Plan.PriceOriginal,
+			"button_text_i18n":           req.Plan.ButtonTextI18n,
+			"plan_type":                  req.Plan.PlanType,
+			"topup_note_i18n":            req.Plan.TopUpNoteI18n,
 			"updated_at":                 common.GetTimestamp(),
 		}
 		if err := tx.Model(&model.SubscriptionPlan{}).Where("id = ?", id).Updates(updateMap).Error; err != nil {
