@@ -281,6 +281,15 @@ func migrateDB() error {
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
 		&PerfMetric{},
+		// 新增模型
+		&Agent{},
+		&AgentCommission{},
+		&AgentWithdrawal{},
+		&Ticket{},
+		&TicketReply{},
+		&TicketCategory{},
+		&Message{},
+		&MessageTemplate{},
 	)
 	if err != nil {
 		return err
@@ -330,6 +339,15 @@ func migrateDBFast() error {
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
 		{&PerfMetric{}, "PerfMetric"},
+		// 新增模型
+		{&Agent{}, "Agent"},
+		{&AgentCommission{}, "AgentCommission"},
+		{&AgentWithdrawal{}, "AgentWithdrawal"},
+		{&Ticket{}, "Ticket"},
+		{&TicketReply{}, "TicketReply"},
+		{&TicketCategory{}, "TicketCategory"},
+		{&Message{}, "Message"},
+		{&MessageTemplate{}, "MessageTemplate"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
