@@ -32,15 +32,14 @@ import {
   User,
   Users,
   Wallet,
+  Bell,
+  Crown,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { type SidebarData } from '@/components/layout/types'
 
 /**
  * Root navigation groups for the application sidebar.
- *
- * These are shown when the URL does not match any nested sidebar view
- * registered in `layout/lib/sidebar-view-registry.ts`.
  */
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
@@ -109,6 +108,21 @@ export function useSidebarData(): SidebarData {
             title: t('Profile'),
             url: '/profile',
             icon: User,
+          },
+          {
+            title: t('My Tickets'),
+            url: '/ticket',
+            icon: Ticket,
+          },
+          {
+            title: t('Messages'),
+            url: '/message',
+            icon: Bell,
+          },
+          {
+            title: t('Agent Center'),
+            url: '/agent',
+            icon: Crown,
           },
         ],
       },

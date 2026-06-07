@@ -22,6 +22,7 @@ type Ticket struct {
 	AssignedTo  int             `json:"assigned_to" gorm:"index"`                // 分配给的用户ID (客服)
 	Rating      int             `json:"rating" gorm:"default:0"`                 // 满意度评分: 0=未评价, 1-5=评分
 	RatingNote  string          `json:"rating_note" gorm:"size:500"`             // 评价备注
+	Remark      string          `json:"remark" gorm:"size:500"`                  // 备注/管理员回复
 	ClosedAt    *time.Time      `json:"closed_at"`                              // 关闭时间
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
