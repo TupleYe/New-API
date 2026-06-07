@@ -205,8 +205,8 @@ function TopUpCard({ tu, cs, onBuy, logged, onVM }: {
    ═══════════════════════════════════════════════════ */
 function TokenPlanSkeleton() {
   return (
-    <PublicLayout>
-      <div className='container mx-auto py-12 px-4'>
+    <PublicLayout showMainContainer={false}>
+      <div className='container mx-auto py-12 px-4 pt-24'>
         <div className='text-center mb-12'>
           <Skeleton className='h-10 w-64 mx-auto mb-4' />
           <Skeleton className='h-6 w-96 mx-auto' />
@@ -230,14 +230,16 @@ export function TokenPlan() {
   const [modelsOpen, setModelsOpen] = useState(false)
   const [creditsInfoOpen, setCreditsInfoOpen] = useState(false)
 
-  useEffect(() => { api.get('/api/user/self').then(() => setIsLoggedIn(true)).catch(() => setIsLoggedIn(false)) }, [])
+  useEffect(() => { api.get('/api/user/self', { skipErrorHandler: true } as any).then(() => setIsLoggedIn(true)).catch(() => setIsLoggedIn(false)) }, [])
 
   const { data, isLoading, error } = useQuery({ queryKey: ['token-plan'], queryFn: getTokenPlan })
   const { data: topupInfo } = useQuery({
-    queryKey: ['topup-info'], queryFn: async () => { try { const r = await api.get('/api/user/topup/info'); return r.data?.data || r.data } catch { return null } }, enabled: isLoggedIn,
+    queryKey: ['topup-info'], queryFn: async () => { try { const r = await api.get('/api/user/topup/info', { skipErrorHandler: true } as any); return r.data?.data || r.data } catch { return null } }, enabled: isLoggedIn,
+    retry: false,
   })
   const { data: selfData } = useQuery({
-    queryKey: ['user-self'], queryFn: async () => { const r = await api.get('/api/user/self'); return r.data?.data || r.data }, enabled: isLoggedIn,
+    queryKey: ['user-self'], queryFn: async () => { const r = await api.get('/api/user/self', { skipErrorHandler: true } as any); return r.data?.data || r.data }, enabled: isLoggedIn,
+    retry: false,
   })
 
   const handleSub = useCallback((tier: TokenPlanTier) => {
@@ -255,7 +257,7 @@ export function TokenPlan() {
   const handleOk = useCallback(() => { setPurchaseOpen(false); toast.success(t('Subscription purchased successfully')) }, [t])
 
   if (isLoading) return <TokenPlanSkeleton />
-  if (error || !data) return <PublicLayout><div className='container mx-auto py-12 px-4 text-center'><p className='text-destructive'>{t('Failed to load Token Plan data')}</p></div></PublicLayout>
+  if (error || !data) return <PublicLayout showMainContainer={false}><div className='container mx-auto py-12 px-4 pt-24 text-center'><p className='text-destructive'>{t('Failed to load Token Plan data')}</p></div></PublicLayout>
 
   const resp: TokenPlanResponse = data
   const uq = selfData?.quota || 0
@@ -266,8 +268,8 @@ export function TokenPlan() {
   const epay = (topupInfo?.pay_methods || []).filter((m: { type: string }) => m.type !== 'stripe' && m.type !== 'creem')
 
   return (
-    <PublicLayout>
-      <div className='min-h-screen bg-background'>
+    <PublicLayout showMainContainer={false}>
+      <div className='min-h-screen bg-background pt-16'>
         {/* ── Hero ── */}
         <section className='border-b bg-gradient-to-b from-muted/40 to-background'>
           <div className='container mx-auto py-14 px-4 text-center'>
