@@ -39,6 +39,8 @@ export interface RegisterPayload {
   verification_code?: string
   aff_code?: string
   turnstile?: string
+  captcha_id?: string
+  captcha_code?: string
 }
 
 export interface PasswordResetPayload {

@@ -29,6 +29,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/user-agreement", controller.GetUserAgreement)
 		apiRouter.GET("/privacy-policy", controller.GetPrivacyPolicy)
 		apiRouter.GET("/about", controller.GetAbout)
+		apiRouter.GET("/token_plan", controller.GetTokenPlan)
+		apiRouter.GET("/token_plan/link", controller.GetTokenPlanLink)
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/pricing", middleware.HeaderNavModuleAuth("pricing"), controller.GetPricing)
@@ -39,6 +41,8 @@ func SetApiRouter(router *gin.Engine) {
 			perfMetricsRoute.GET("", controller.GetPerfMetrics)
 		}
 		apiRouter.GET("/rankings", middleware.HeaderNavModuleAuth("rankings"), controller.GetRankings)
+		apiRouter.GET("/captcha", controller.GetCaptcha) // 获取图像验证码
+
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		apiRouter.GET("/reset_password", middleware.CriticalRateLimit(), middleware.TurnstileCheck(), controller.SendPasswordResetEmail)
 		apiRouter.POST("/user/reset", middleware.CriticalRateLimit(), anonymousRequestBodyLimit, controller.ResetPassword)
@@ -122,6 +126,31 @@ func SetApiRouter(router *gin.Engine) {
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)
+
+				// 代理系统
+				selfRoute.GET("/agent", controller.GetAgentInfo)
+				selfRoute.POST("/agent/apply", controller.ApplyForAgent)
+				selfRoute.GET("/agent/stats", controller.GetAgentStats)
+				selfRoute.GET("/agent/commissions", controller.GetAgentCommissions)
+				selfRoute.GET("/agent/withdrawals", controller.GetAgentWithdrawals)
+				selfRoute.POST("/agent/withdraw", controller.RequestWithdrawal)
+				selfRoute.GET("/agent/invited", controller.GetAgentInvitedUsers)
+
+				// 工单系统
+				selfRoute.GET("/tickets", controller.GetMyTickets)
+				selfRoute.POST("/tickets", controller.CreateTicket)
+				selfRoute.GET("/tickets/:id", controller.GetTicketDetail)
+				selfRoute.POST("/tickets/:id/reply", controller.ReplyTicket)
+				selfRoute.POST("/tickets/:id/rate", controller.RateTicket)
+				selfRoute.POST("/tickets/:id/close", controller.CloseTicket)
+				selfRoute.GET("/ticket/categories", controller.GetTicketCategories)
+
+				// 消息中心
+				selfRoute.GET("/messages", controller.GetMyMessages)
+				selfRoute.GET("/messages/unread", controller.GetUnreadMessageCount)
+				selfRoute.POST("/messages/:id/read", controller.MarkMessageAsRead)
+				selfRoute.POST("/messages/read/all", controller.MarkAllMessagesAsRead)
+				selfRoute.DELETE("/messages/:id", controller.DeleteMessage)
 			}
 
 			adminRoute := userRoute.Group("/")
@@ -144,6 +173,24 @@ func SetApiRouter(router *gin.Engine) {
 				// Admin 2FA routes
 				adminRoute.GET("/2fa/stats", controller.Admin2FAStats)
 				adminRoute.DELETE("/:id/2fa", controller.AdminDisable2FA)
+
+				// 代理管理
+				adminRoute.GET("/agents", controller.AdminGetAllAgents)
+				adminRoute.GET("/agents/:id", controller.AdminGetAgentDetails)
+				adminRoute.PUT("/agents/:id", controller.AdminUpdateAgent)
+				adminRoute.GET("/withdrawals", controller.AdminGetAllWithdrawals)
+				adminRoute.POST("/withdrawals/:id", controller.AdminProcessWithdrawal)
+
+				// 工单管理
+				adminRoute.GET("/tickets", controller.AdminGetAllTickets)
+				adminRoute.POST("/tickets/:id/assign", controller.AdminAssignTicket)
+				adminRoute.POST("/tickets/:id/close", controller.AdminCloseTicket)
+				adminRoute.POST("/tickets/:id/complete", controller.AdminCompleteTicket)
+
+				// 消息管理
+				adminRoute.GET("/messages", controller.AdminGetAllMessages)
+				adminRoute.POST("/messages", controller.AdminSendMessage)
+				adminRoute.DELETE("/messages/:id", controller.AdminDeleteMessage)
 			}
 		}
 

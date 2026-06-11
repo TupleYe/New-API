@@ -133,3 +133,11 @@ export async function bindEmail(
   })
   return res.data
 }
+
+// Get image captcha
+export async function getCaptcha(): Promise<
+  ApiResponse<{ captcha_id: string; captcha_image: string }>
+> {
+  const res = await api.get('/api/captcha')
+  return res.data
+}

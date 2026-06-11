@@ -27,6 +27,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       console: true,
       pricing: true,
       docs: true,
+      'token-plan': true,
       about: true,
     };
 
@@ -59,6 +60,12 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
             },
           ]
         : []),
+      {
+        text: t('Token Plan'),
+        itemKey: 'token-plan',
+        isExternal: true,
+        externalLink: 'https://taotoken.net/token-plan',
+      },
       {
         text: t('关于'),
         itemKey: 'about',

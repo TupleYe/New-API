@@ -11,15 +11,17 @@ const (
 )
 
 type GeneralSetting struct {
-	DocsLink            string `json:"docs_link"`
-	PingIntervalEnabled bool   `json:"ping_interval_enabled"`
-	PingIntervalSeconds int    `json:"ping_interval_seconds"`
+	DocsLink            string  `json:"docs_link"`
+	PingIntervalEnabled bool    `json:"ping_interval_enabled"`
+	PingIntervalSeconds int     `json:"ping_interval_seconds"`
 	// 当前站点额度展示类型：USD / CNY / TOKENS
-	QuotaDisplayType string `json:"quota_display_type"`
+	QuotaDisplayType string  `json:"quota_display_type"`
 	// 自定义货币符号，用于 CUSTOM 展示类型
-	CustomCurrencySymbol string `json:"custom_currency_symbol"`
+	CustomCurrencySymbol string  `json:"custom_currency_symbol"`
 	// 自定义货币与美元汇率（1 USD = X Custom）
 	CustomCurrencyExchangeRate float64 `json:"custom_currency_exchange_rate"`
+	// Token Plan 页面链接（空则使用默认值）
+	TokenPlanLink string `json:"token_plan_link"`
 }
 
 // 默认配置
@@ -30,6 +32,7 @@ var generalSetting = GeneralSetting{
 	QuotaDisplayType:           QuotaDisplayTypeUSD,
 	CustomCurrencySymbol:       "¤",
 	CustomCurrencyExchangeRate: 1.0,
+	TokenPlanLink:              "https://taotoken.net/token-plan",
 }
 
 func init() {

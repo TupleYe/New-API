@@ -22,7 +22,7 @@ var TopUpLink = ""
 var themeValue atomic.Value // stores string; safe for concurrent read/write
 
 func init() {
-	themeValue.Store("classic")
+	themeValue.Store("default")
 }
 
 func GetTheme() string {
@@ -187,13 +187,20 @@ const (
 const (
 	RoleGuestUser  = 0
 	RoleCommonUser = 1
+	RoleAgentUser  = 5  // 代理用户
 	RoleAdminUser  = 10
 	RoleRootUser   = 100
 )
 
 func IsValidateRole(role int) bool {
-	return role == RoleGuestUser || role == RoleCommonUser || role == RoleAdminUser || role == RoleRootUser
+	return role == RoleGuestUser || role == RoleCommonUser || role == RoleAgentUser || role == RoleAdminUser || role == RoleRootUser
 }
+
+// Role 判断辅助函数
+func IsAgentUser(role int) bool  { return role == RoleAgentUser }
+func IsAdminUser(role int) bool  { return role == RoleAdminUser }
+func IsRootUser(role int) bool   { return role == RoleRootUser }
+func IsCommonUser(role int) bool { return role == RoleCommonUser || role == RoleGuestUser }
 
 var (
 	FileUploadPermission    = RoleGuestUser
