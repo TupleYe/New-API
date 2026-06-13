@@ -207,9 +207,86 @@ func GetWaitingTickets(limit int) ([]Ticket, error) {
 }
 
 // AutoMigrateTicketTables 自动迁移工单相关表
+// 使用原生 SQL 避免 GORM SQLite AutoMigrate 在表已存在时解析 DDL 失败的 bug
 func AutoMigrateTicketTables() {
-	DB.AutoMigrate(&Ticket{}, &TicketReply{}, &TicketCategory{})
-	
+	// 使用 HasTable 检查并用原生 SQL 创建，避免 GORM SQLite 驱动 DDL 正则匹配问题
+	ensureTable(DB, "tickets", `CREATE TABLE tickets (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		ticket_no VARCHAR(32) UNIQUE NOT NULL,
+		user_id INT NOT NULL,
+		category VARCHAR(32),
+		priority INT DEFAULT 1,
+		title VARCHAR(255) NOT NULL,
+		content TEXT NOT NULL,
+		attachments VARCHAR(1000),
+		status INT DEFAULT 0,
+		assigned_to INT DEFAULT 0,
+		rating INT DEFAULT 0,
+		rating_note VARCHAR(500),
+		remark VARCHAR(500),
+		closed_at DATETIME,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		deleted_at DATETIME
+	)`, []sqliteColumnDef{
+		{Name: "ticket_no", DDL: "`ticket_no` VARCHAR(32) UNIQUE NOT NULL"},
+		{Name: "user_id", DDL: "`user_id` INT NOT NULL"},
+		{Name: "category", DDL: "`category` VARCHAR(32)"},
+		{Name: "priority", DDL: "`priority` INT DEFAULT 1"},
+		{Name: "title", DDL: "`title` VARCHAR(255) NOT NULL"},
+		{Name: "content", DDL: "`content` TEXT NOT NULL"},
+		{Name: "attachments", DDL: "`attachments` VARCHAR(1000)"},
+		{Name: "status", DDL: "`status` INT DEFAULT 0"},
+		{Name: "assigned_to", DDL: "`assigned_to` INT DEFAULT 0"},
+		{Name: "rating", DDL: "`rating` INT DEFAULT 0"},
+		{Name: "rating_note", DDL: "`rating_note` VARCHAR(500)"},
+		{Name: "remark", DDL: "`remark` VARCHAR(500)"},
+		{Name: "closed_at", DDL: "`closed_at` DATETIME"},
+		{Name: "created_at", DDL: "`created_at` DATETIME DEFAULT CURRENT_TIMESTAMP"},
+		{Name: "updated_at", DDL: "`updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP"},
+		{Name: "deleted_at", DDL: "`deleted_at` DATETIME"},
+	})
+
+	ensureTable(DB, "ticket_replies", `CREATE TABLE ticket_replies (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		ticket_id INT NOT NULL,
+		user_id INT NOT NULL,
+		is_staff NUMERIC DEFAULT 0,
+		content TEXT NOT NULL,
+		attachments VARCHAR(1000),
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		deleted_at DATETIME
+	)`, []sqliteColumnDef{
+		{Name: "ticket_id", DDL: "`ticket_id` INT NOT NULL"},
+		{Name: "user_id", DDL: "`user_id` INT NOT NULL"},
+		{Name: "is_staff", DDL: "`is_staff` NUMERIC DEFAULT 0"},
+		{Name: "content", DDL: "`content` TEXT NOT NULL"},
+		{Name: "attachments", DDL: "`attachments` VARCHAR(1000)"},
+		{Name: "created_at", DDL: "`created_at` DATETIME DEFAULT CURRENT_TIMESTAMP"},
+		{Name: "deleted_at", DDL: "`deleted_at` DATETIME"},
+	})
+
+	ensureTable(DB, "ticket_categories", `CREATE TABLE ticket_categories (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name VARCHAR(64) NOT NULL,
+		name_en VARCHAR(64),
+		description VARCHAR(255),
+		icon VARCHAR(64),
+		sort_order INT DEFAULT 0,
+		status INT DEFAULT 1,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	)`, []sqliteColumnDef{
+		{Name: "name", DDL: "`name` VARCHAR(64) NOT NULL"},
+		{Name: "name_en", DDL: "`name_en` VARCHAR(64)"},
+		{Name: "description", DDL: "`description` VARCHAR(255)"},
+		{Name: "icon", DDL: "`icon` VARCHAR(64)"},
+		{Name: "sort_order", DDL: "`sort_order` INT DEFAULT 0"},
+		{Name: "status", DDL: "`status` INT DEFAULT 1"},
+		{Name: "created_at", DDL: "`created_at` DATETIME DEFAULT CURRENT_TIMESTAMP"},
+		{Name: "updated_at", DDL: "`updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP"},
+	})
+
 	// 初始化默认分类
 	categories := []TicketCategory{
 		{Name: "技术问题", NameEn: "Technical Issue", Description: "API调用、技术集成问题", Icon: "tech", SortOrder: 1, Status: 1},
@@ -217,11 +294,47 @@ func AutoMigrateTicketTables() {
 		{Name: "账户问题", NameEn: "Account Issue", Description: "登录、权限、账户设置", Icon: "account", SortOrder: 3, Status: 1},
 		{Name: "其他", NameEn: "Other", Description: "其他问题", Icon: "other", SortOrder: 4, Status: 1},
 	}
-	
+
 	for _, cat := range categories {
 		var existing TicketCategory
 		if err := DB.Where("name = ?", cat.Name).First(&existing).Error; err != nil {
 			DB.Create(&cat)
+		}
+	}
+}
+
+// sqliteColumnDef 用于 describe SQLite 表的列
+// 已在 model/main.go 中定义，这里保留引用
+
+// ensureTable 检查表是否存在，不存在则用 CREATE TABLE 创建，存在则用 PRAGMA 添加缺失的列
+func ensureTable(db *gorm.DB, tableName string, createSQL string, requiredCols []sqliteColumnDef) {
+	if !db.Migrator().HasTable(tableName) {
+		if err := db.Exec(createSQL).Error; err != nil {
+			common.SysError(fmt.Sprintf("创建表 %s 失败: %v", tableName, err))
+		}
+		return
+	}
+
+	// 表已存在，检查并添加缺失的列
+	var existingCols []struct {
+		Name string `gorm:"column:name"`
+	}
+	if err := db.Raw(fmt.Sprintf("PRAGMA table_info(`%s`)", tableName)).Scan(&existingCols).Error; err != nil {
+		common.SysError(fmt.Sprintf("读取表 %s 结构失败: %v", tableName, err))
+		return
+	}
+
+	existing := make(map[string]struct{}, len(existingCols))
+	for _, c := range existingCols {
+		existing[c.Name] = struct{}{}
+	}
+
+	for _, col := range requiredCols {
+		if _, ok := existing[col.Name]; !ok {
+			alterSQL := fmt.Sprintf("ALTER TABLE `%s` ADD COLUMN %s", tableName, col.DDL)
+			if err := db.Exec(alterSQL).Error; err != nil {
+				common.SysError(fmt.Sprintf("添加列 %s.%s 失败: %v", tableName, col.Name, err))
+			}
 		}
 	}
 }

@@ -182,16 +182,72 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.POST("/withdrawals/:id", controller.AdminProcessWithdrawal)
 
 				// 工单管理
-				adminRoute.GET("/tickets", controller.AdminGetAllTickets)
-				adminRoute.POST("/tickets/:id/assign", controller.AdminAssignTicket)
-				adminRoute.POST("/tickets/:id/close", controller.AdminCloseTicket)
-				adminRoute.POST("/tickets/:id/complete", controller.AdminCompleteTicket)
+				adminRoute.GET("/admin/tickets", controller.AdminGetAllTickets)
+				adminRoute.POST("/admin/tickets/:id/assign", controller.AdminAssignTicket)
+				adminRoute.POST("/admin/tickets/:id/close", controller.AdminCloseTicket)
+				adminRoute.POST("/admin/tickets/:id/complete", controller.AdminCompleteTicket)
 
 				// 消息管理
-				adminRoute.GET("/messages", controller.AdminGetAllMessages)
-				adminRoute.POST("/messages", controller.AdminSendMessage)
-				adminRoute.DELETE("/messages/:id", controller.AdminDeleteMessage)
+				adminRoute.GET("/admin/messages", controller.AdminGetAllMessages)
+				adminRoute.POST("/admin/messages", controller.AdminSendMessage)
+				adminRoute.DELETE("/admin/messages/:id", controller.AdminDeleteMessage)
 			}
+		}
+
+		// 工单系统 (用户端, /api/ 级别 - 对应前端 /api/tickets)
+		ticketApiRoute := apiRouter.Group("/")
+		ticketApiRoute.Use(middleware.UserAuth())
+		{
+			ticketApiRoute.GET("/tickets", controller.GetMyTickets)
+			ticketApiRoute.POST("/tickets", controller.CreateTicket)
+			ticketApiRoute.GET("/tickets/:id", controller.GetTicketDetail)
+			ticketApiRoute.POST("/tickets/:id/reply", controller.ReplyTicket)
+			ticketApiRoute.POST("/tickets/:id/rate", controller.RateTicket)
+			ticketApiRoute.POST("/tickets/:id/close", controller.CloseTicket)
+			ticketApiRoute.GET("/ticket/categories", controller.GetTicketCategories)
+
+			// /api/helpdesk/ 别名路由 (兼容旧前端/外部客户端)
+			ticketApiRoute.GET("/helpdesk/categories", controller.GetTicketCategories)
+			ticketApiRoute.GET("/helpdesk/tickets", controller.GetMyTickets)
+			ticketApiRoute.POST("/helpdesk/tickets", controller.CreateTicket)
+			ticketApiRoute.GET("/helpdesk/tickets/:id", controller.GetTicketDetail)
+			ticketApiRoute.POST("/helpdesk/tickets/:id/reply", controller.ReplyTicket)
+			ticketApiRoute.POST("/helpdesk/tickets/:id/rate", controller.RateTicket)
+			ticketApiRoute.POST("/helpdesk/tickets/:id/close", controller.CloseTicket)
+
+			// 管理端工单 (也加到 /api/ 级别)
+			adminTicketRoute := ticketApiRoute.Group("/")
+			adminTicketRoute.Use(middleware.AdminAuth())
+			{
+				adminTicketRoute.GET("/admin/tickets", controller.AdminGetAllTickets)
+				adminTicketRoute.POST("/admin/tickets/:id/assign", controller.AdminAssignTicket)
+				adminTicketRoute.POST("/admin/tickets/:id/close", controller.AdminCloseTicket)
+				adminTicketRoute.POST("/admin/tickets/:id/complete", controller.AdminCompleteTicket)
+			}
+		}
+
+		// /api/messages 别名路由（前端直接请求 /api/messages，后端在 /api/user/messages）
+		messagesApiRoute := apiRouter.Group("/")
+		messagesApiRoute.Use(middleware.UserAuth())
+		{
+			messagesApiRoute.GET("/messages", controller.GetMyMessages)
+			messagesApiRoute.GET("/messages/unread", controller.GetUnreadMessageCount)
+			messagesApiRoute.POST("/messages/:id/read", controller.MarkMessageAsRead)
+			messagesApiRoute.POST("/messages/read/all", controller.MarkAllMessagesAsRead)
+			messagesApiRoute.DELETE("/messages/:id", controller.DeleteMessage)
+		}
+
+		// /api/agent 别名路由（前端直接请求 /api/agent/*，后端在 /api/user/agent/*）
+		agentApiRoute := apiRouter.Group("/")
+		agentApiRoute.Use(middleware.UserAuth())
+		{
+			agentApiRoute.GET("/agent", controller.GetAgentInfo)
+			agentApiRoute.POST("/agent/apply", controller.ApplyForAgent)
+			agentApiRoute.GET("/agent/stats", controller.GetAgentStats)
+			agentApiRoute.GET("/agent/commissions", controller.GetAgentCommissions)
+			agentApiRoute.GET("/agent/withdrawals", controller.GetAgentWithdrawals)
+			agentApiRoute.POST("/agent/withdraw", controller.RequestWithdrawal)
+			agentApiRoute.GET("/agent/invited", controller.GetAgentInvitedUsers)
 		}
 
 		// Subscription billing (plans, purchase, admin management)

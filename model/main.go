@@ -248,6 +248,15 @@ func InitLogDB() (err error) {
 }
 
 func migrateDB() error {
+	// Fix: GORM SQLite AutoMigrate has DDL regex bugs with pre-existing tables.
+	// If using SQLite and tables already exist (e.g. migrated from MySQL), skip AutoMigrate.
+	if common.UsingSQLite && DB.Migrator().HasTable("users") {
+		common.SysLog("SQLite tables already exist, skipping AutoMigrate")
+		// Still need to ensure new tables (Ticket, Message etc.) exist
+		AutoMigrateTicketTables()
+		return nil
+	}
+
 	// Migrate price_amount column from float/double to decimal for existing tables
 	migrateSubscriptionPlanPriceAmount()
 	// Migrate model_limits column from varchar to text for existing tables
@@ -285,9 +294,6 @@ func migrateDB() error {
 		&Agent{},
 		&AgentCommission{},
 		&AgentWithdrawal{},
-		&Ticket{},
-		&TicketReply{},
-		&TicketCategory{},
 		&Message{},
 		&MessageTemplate{},
 	)
@@ -298,6 +304,7 @@ func migrateDB() error {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
 		}
+		AutoMigrateTicketTables()
 	} else {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
 			return err
@@ -307,6 +314,12 @@ func migrateDB() error {
 }
 
 func migrateDBFast() error {
+	// Same fix as migrateDB: skip GORM AutoMigrate on SQLite with pre-existing tables
+	if common.UsingSQLite && DB.Migrator().HasTable("users") {
+		common.SysLog("SQLite tables already exist, skipping fast migration")
+		AutoMigrateTicketTables()
+		return nil
+	}
 
 	var wg sync.WaitGroup
 
@@ -343,9 +356,6 @@ func migrateDBFast() error {
 		{&Agent{}, "Agent"},
 		{&AgentCommission{}, "AgentCommission"},
 		{&AgentWithdrawal{}, "AgentWithdrawal"},
-		{&Ticket{}, "Ticket"},
-		{&TicketReply{}, "TicketReply"},
-		{&TicketCategory{}, "TicketCategory"},
 		{&Message{}, "Message"},
 		{&MessageTemplate{}, "MessageTemplate"},
 	}
@@ -376,6 +386,7 @@ func migrateDBFast() error {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
 		}
+		AutoMigrateTicketTables()
 	} else {
 		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
 			return err
