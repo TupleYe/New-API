@@ -14,11 +14,11 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
 } from '@/components/ui/table'
 import { 
-  Ticket, Plus, RefreshCw, MessageSquare, Star, X, Send
+  Ticket, Plus, RefreshCw, MessageSquare, Star, X
 } from 'lucide-react'
 import { 
-  getMyTickets, getTicketDetail, createTicket, replyTicket, 
-  rateTicket, closeTicket, getTicketCategories,
+  getMyTickets, getTicketDetail, createTicket, 
+  rateTicket, getTicketCategories,
   type Ticket as TicketType, type TicketReply, type TicketCategory
 } from './api'
 
@@ -30,7 +30,6 @@ export default function TicketPage() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [selectedTicket, setSelectedTicket] = useState<TicketType | null>(null)
   const [replies, setReplies] = useState<TicketReply[]>([])
-  const [replyContent, setReplyContent] = useState('')
   const [showRateDialog, setShowRateDialog] = useState(false)
   const [rateScore, setRateScore] = useState(5)
   const [rateNote, setRateNote] = useState('')
@@ -114,33 +113,6 @@ export default function TicketPage() {
       }
     } catch (error) {
       console.error('Failed to load ticket detail:', error)
-    }
-  }
-
-  const handleReply = async () => {
-    if (!selectedTicket || !replyContent) return
-    
-    try {
-      await replyTicket(selectedTicket.id, { content: replyContent })
-      setReplyContent('')
-      const res = await getTicketDetail(selectedTicket.id)
-      if (res.success) {
-        setReplies(res.data.replies)
-      }
-    } catch (error) {
-      console.error('Failed to reply:', error)
-    }
-  }
-
-  const handleClose = async () => {
-    if (!selectedTicket) return
-    
-    try {
-      await closeTicket(selectedTicket.id)
-      setSelectedTicket(null)
-      loadData()
-    } catch (error) {
-      console.error('Failed to close ticket:', error)
     }
   }
 
@@ -342,32 +314,14 @@ export default function TicketPage() {
                 </div>
               )}
               
-              {/* Reply Input */}
-              {selectedTicket.status !== 3 && selectedTicket.status !== 2 && (
-                <div className="flex gap-2">
-                  <Textarea 
-                    value={replyContent}
-                    onChange={(e) => setReplyContent(e.target.value)}
-                    placeholder={t('Enter reply content...')}
-                    rows={2}
-                  />
-                  <Button onClick={handleReply}>
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-              )}
+              {/* 普通用户不可追加回复，仅客服可在管理端回复 */}
               
-              {/* Actions */}
+              {/* Actions: 普通用户不可追加回复，仅可评价已完成的工单 */}
               <div className="flex gap-2 pt-4 border-t">
                 {selectedTicket.status === 2 && (
                   <Button variant="outline" onClick={() => setShowRateDialog(true)}>
                     <Star className="mr-2 h-4 w-4" />
                     {t('Rate')}
-                  </Button>
-                )}
-                {selectedTicket.status !== 3 && selectedTicket.status !== 2 && (
-                  <Button variant="outline" onClick={handleClose}>
-                    {t('Close Ticket')}
                   </Button>
                 )}
               </div>
