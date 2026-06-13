@@ -351,6 +351,14 @@ export const STATIC_I18N_KEYS = [
   'Price',
   'Priority',
   'Payment Channel',
+
+  // Landing page pricing
+  'Simple, Transparent Pricing',
+  'Most Popular',
+  'Starter',
+  'Pro',
+  'Team',
+  'Enterprise',
   'No Upgrade',
   'Unlimited',
   'Update plan info',
